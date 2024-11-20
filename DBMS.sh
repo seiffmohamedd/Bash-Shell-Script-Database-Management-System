@@ -17,15 +17,17 @@ select option in createDB SelectDB createTB exit
 do
 case $option in
 	"createDB")
-	read -p "Please Enter Database Name: " DBName
-	if [ -e $DBName ]
-	then
-		echo "Database is already exist"
-	else 
-		mkdir $DBName
-		echo "Database is created successfully"
-	fi
-
+		read -p "Please Enter Database Name: " DBName
+		if [[ ! $DBName =~ ^[a-zA-Z] ]]
+		then
+			echo "Invalid database name. It must start with an alphabetic character."
+		elif [ -e "$DBName" ]
+		then
+			echo "Database already exists."
+		else 
+			mkdir "$DBName"
+			echo "Database is created successfully."
+		fi
 	;;
 	"SelectDB")
 	read -p "Please Enter Database Name: " SelectedDB
