@@ -45,70 +45,91 @@
         echo "$(pwd)"
         if [[ $PWD == ~/Database/* ]]; then
             read -p "Please Enter Table Name: " CreatedTB
-            if [[ ! $CreatedTB =~ ^[a-zA-Z] ]]; then
+            if [[ ! $CreatedTB =~ ^[a-zA-Z] || $CreatedTB = ^[Ss][Ee][Ll][Ee][Cc][Tt]$ || $CreatedTB = ^[Uu][Pp][Dd][Aa][Tt][Ee]$ || $CreatedTB = ^[Dd][Ee][Ll][Ee][Tt][Ee]$ ]]; then
                 echo "Invalid table name. It must start with an alphabetic character."
+
             elif ls | grep -i -q "^$CreatedTB$"; then
                 echo "Table already exists (name matches case-insensitively)."
+
             else
                 read -p "Please Enter Number of Columns: " numCol
                 
                 if [[ $numCol -gt 0 ]]; then
-                    allowedDataTypes=("int" "number" "char" "varchar" "varchar2" "decimal" "float" "money" "tinyint" "bigint")
+                    allowedDataTypes=("int" "number" "char" "varchar" "varchar2")
                     pk=0
                     schema_line=""
                     
                     
                   schema_content=""
-        # add here that the create table name shouldnt be select , update or delete
-for ((i=0; i<$numCol; i++)); do
+colCheck=() # Array to keep track of column names
+for ((i = 0; i < numCol; i++)); do
+    colNameflag=0 # Reset flag for each new column input
     read -p "Please Enter column name: " ColName
 
+    # Validate column name
     if [[ $ColName =~ ^[a-zA-Z] ]]; then
-        
-        echo "Datatypes allowed"
-        echo "${allowedDataTypes[@]}"
-        read -p "Please Enter column Datatype: " colType
-
-        lowercase=$(echo "$colType" | tr 'A-Z' 'a-z')
-
-        declare -i flag=0
-        for dt in "${allowedDataTypes[@]}"; do
-            
-            if [[ $lowercase == $dt ]]; then
-                flag=1
+        # Check for duplicate column name
+        for c in "${colCheck[@]}"; do
+            if [[ $ColName == "$c" ]]; then
+                echo "Cannot have 2 columns with the same name."
+                colNameflag=1
                 break
             fi
         done
 
-        if [[ $flag -eq 1 ]]; then
-            column_line="$ColName:$lowercase"
+        if [[ $colNameflag -eq 0 ]]; then
+            colCheck+=("$ColName") # Append column name to the array
+            echo "Datatypes allowed"
+            echo "${allowedDataTypes[@]}"
+            echo "varchar2 -> for special characters like @, _"
+            echo "varchar -> for characters only"
+            read -p "Please Enter column Datatype: " colType
+            
+            lowercase=$(echo "$colType" | tr 'A-Z' 'a-z')
 
-            if [[ $pk -eq 0 ]]; then
-                while true; do
-                    read -p "Do you want to make this Column PK (y/n): " checkPK
-                    if [[ $checkPK == "y" || $checkPK == "n" ]]; then
-                        break
-                    else
-                        echo "Invalid input. Please enter 'y' or 'n'."
-                    fi
-                done
-
-                if [[ $checkPK == "y" ]]; then
-                    column_line+=":pk"
-                    pk=1
+            declare -i flag=0
+            for dt in "${allowedDataTypes[@]}"; do
+                if [[ $lowercase == $dt ]]; then
+                    flag=1
+                    break
                 fi
-            fi
+            done
 
-            schema_content+="$column_line"$'\n'
+            if [[ $flag -eq 1 ]]; then
+                column_line="$ColName:$lowercase"
+
+                # Prompt for primary key
+                if [[ $pk -eq 0 ]]; then
+                    while true; do
+                        read -p "Do you want to make this Column PK (y/n): " checkPK
+                        if [[ $checkPK == "y" || $checkPK == "n" ]]; then
+                            break
+                        else
+                            echo "Invalid input. Please enter 'y' or 'n'."
+                        fi
+                    done
+
+                    if [[ $checkPK == "y" ]]; then
+                        column_line+=":pk"
+                        pk=1
+                    fi
+                fi
+                
+                schema_content+="$column_line"$'\n'
+            else
+                echo "Invalid data type."
+                i=$((i - 1))
+            fi
         else
-            echo "Invalid data type."
+            echo "Cant Create, Column Name Repeated"
             i=$((i - 1))
         fi
     else
-        echo "Invalid column name."
+        echo "Column name must start with a letter"
         i=$((i - 1))
     fi
 done
+
 
 echo -n "$schema_content" > ".meta$CreatedTB"
 
@@ -186,7 +207,7 @@ echo "Table is created successfully."
                     fi
                     case $type in
                         int | number)
-                            if [[ $value =~ ^-?[0-9]+$ ]]; then
+                            if [[ $value =~ ^[1-9][0-9]*$ ]]; then
                                 row+=("$value")
                                 break
                             else
@@ -318,100 +339,88 @@ echo "Table is created successfully."
         ;;
         "deletefromtable")
 
-        if [[ $PWD == ~/Database/* ]]; then
-            read -p "enter the table name: " stbname
-            if [[ -f "$PWD/$stbname" ]]; then
-            chmod 777 "$PWD/$stbname"
-            read -p "enter column name you want to delete from (column_name) (if no filter specified the whole table data will be deleted): " column_name
-            
-            if [[ $column_name == "" ]];then
-                touch delfile
-                # echo "$PWD"
-                > "$PWD/$stbname"
-                rm -r delfile
-            else
+if [[ $PWD == ~/Database/* ]]; then
+    read -p "Enter the table name: " stbname
+    if [[ -f "$PWD/$stbname" ]]; then
+        chmod 777 "$PWD/$stbname"
+        read -p "Enter column name you want to delete from (column_name) 
+                (ALL --> will delete the whole table): " column_name
 
+        if [[ $column_name == "ALL" ]]; then
+            > "$PWD/$stbname"  # Clears the table
+            echo "Table $stbname cleared."
+        elif [[ $column_name == "" ]]; then
+            echo "Please enter a valid column name."
+        else
+            # Get column names and types
             getColumnName=($(awk '
-                BEGIN {
-                    FS=":"
-                }{
-                    print $1
-                
-                }' "$PWD/.meta$stbname"))
+                BEGIN { FS=":" }
+                { print $1 }
+            ' "$PWD/.meta$stbname"))
 
             columnType=($(awk '
-                BEGIN { 
-
-                FS=":" 
-                
-                }{ 
-                
-                print $2 
-                
-                }' "$PWD/.meta$stbname"))
+                BEGIN { FS=":" }
+                { print $2 }
+            ' "$PWD/.meta$stbname"))
 
             flagfound=0
             colType=""
-            colname=""
             idxx=0
-            
+
+            # Find the index of the column
             for ((i = 0; i < ${#getColumnName[@]}; i++)); do
-                colname="${getColumnName[$i]}"
-                if [[ $column_name == $colname ]]; then
+                if [[ $column_name == ${getColumnName[$i]} ]]; then
                     flagfound=1
                     colType="${columnType[$i]}"
                     idxx=$((i + 1))
-                    break  
+                    break
                 fi
             done
 
             if [[ $flagfound == 0 ]]; then
-                echo "column name doesn't exist "
+                echo "Column name doesn't exist."
             else
+                echo "Column Type: $colType"
+                read -p "Please enter your delete constraint: " filter
 
-            flagfound=0
-            echo $colType
-            echo $colname
-            read -p "please enter your delete constraint: " filter
-            deletion=($(awk '
-            BEGIN {
-                FS=":"
-            }{
-                if($idxx == filter)
-                    print $0
+                # Handle spaces in column values
+                awk -v idxx="$idxx" -v filter="$filter" '
+                    BEGIN { FS = ":"; OFS = ":" }
+                    {
+                        if ($idxx == filter) {
+                            next
+                        }
+                        print $0
+                    }
+                ' "$PWD/$stbname" > "$PWD/$stbname.tmp" && mv "$PWD/$stbname.tmp" "$PWD/$stbname"
 
-            }' idxx="$idxx" filter="$filter" "$PWD/$stbname"))
-
-         for ((i=0; i<${#deletion[@]}; i++)); do
-            del="${deletion[$i]}"
-            # echo "dah el del"
-            # echo $del 
-            delrows=$(grep -x "$del" "$PWD/$stbname")
-            echo "dah el del rows"
-            echo $delrows
-            
-            for row in $delrows; do
-                sed -i "/$row/d" "$PWD/$stbname"
-            done
-        done
+                echo "Rows matching the constraint '$filter' in column '$column_name' have been deleted."
             fi
-            fi
-            else  
-             echo "Table $stbname does not exist."
-            fi
-
-        else
-            echo "please select a database"
         fi
+    else
+        echo "Table $stbname does not exist."
+    fi
+else
+    echo "Please select a database."
+fi
 
-        ;;
-        "updatetable")
+;;
+       "updatetable")
 
 if [[ $PWD == ~/Database/* ]]; then
     read -p "Enter the table name: " stbname
     if [[ -f "$PWD/$stbname" ]]; then
         chmod 777 "$PWD/$stbname"
         read -p "Enter the column name you want to update (column_name): " update_column_name
+
+        # Get the primary key index
+        pkidx=($(awk '
+            BEGIN { FS=":" }
+            {
+                if ($3 == "pk") {
+                    print NR
+                }
+            }' "$PWD/.meta$stbname"))
 
         getColumnName=($(awk '
             BEGIN { FS=":" }
@@ -465,35 +474,80 @@ if [[ $PWD == ~/Database/* ]]; then
                 read -p "Enter the filter constraint value: " filter
                 read -p "Enter the new value for the column to update: " new_value
 
-                if [[ $colType == "varchar" || $colType == "varchar2" ]]; then
-                    if [[ $new_value == [a-z] ]]; then
-                    else 
-                        echo please enter
+                # Validation based on column type
+                is_valid=0
+                case $colType in
+                    "int")
+                        if [[ $new_value =~ ^-?[0-9]+$ ]]; then
+                            is_valid=1
+                        fi
+                        ;;
+                    "number")
+                        if [[ $new_value =~ ^-?[0-9]+$ ]]; then
+                            is_valid=1
+                        fi
+                        ;;
+                    "char")
+                        if [[ ${#new_value} -eq 1 ]]; then
+                            is_valid=1
+                        fi
+                        ;;
+                    "varchar")
+                        if [[ $new_value =~ ^[a-zA-Z]+$ ]]; then
+                            is_valid=1
+                        fi
+                        ;;
+                    "varchar2")
+                        if [[ "$new_value" =~ ^[A-Za-z0-9\ ]+$ ]]; then
+                            is_valid=1
+                        fi
+                        ;;
+                    *)
+                        echo "Unsupported column type: $colType"
+                        ;;
+                esac
 
-                elif [[ $colType == "int" ]]
-                
+                if [[ $is_valid -eq 1 ]]; then
+                    # Check if updating the primary key and validate its uniqueness
+                    if [[ $idxx -eq ${pkidx[0]} ]]; then
+                        existing_pk=$(awk -v pk_idx="$idxx" -v pk_value="$new_value" '
+                        BEGIN { FS=":" }
+                        {
+                            if ($pk_idx == pk_value) {
+                                print $0
+                            }
+                        }' "$PWD/$stbname")
 
-                awk -v idxx="$idxx" -v filter_idxx="$filter_idxx" -v filter="$filter" -v new_value="$new_value" '
-                BEGIN { FS=":"; OFS=":" }
-                {
-                    if ($filter_idxx == filter) {
-                        $idxx = new_value
+                        if [[ -n $existing_pk ]]; then
+                            echo "Error: The primary key value '$new_value' already exists in the table."
+                            exit 1
+                        fi
+                    fi
+
+                    # Update the table if the new value is valid and unique for the primary key
+                    awk -v idxx="$idxx" -v filter_idxx="$filter_idxx" -v filter="$filter" -v new_value="$new_value" '
+                    BEGIN { FS=":"; OFS=":" }
+                    {
+                        if ($filter_idxx == filter) {
+                            $idxx = new_value
+                        }
+                        print $0
                     }
-                    print $0
-                }
-                ' "$PWD/$stbname" > "$PWD/$stbname.tmp" && mv "$PWD/$stbname.tmp" "$PWD/$stbname"
+                    ' "$PWD/$stbname" > "$PWD/$stbname.tmp" && mv "$PWD/$stbname.tmp" "$PWD/$stbname"
 
-                echo "Table updated successfully."
-
+                    echo "Table updated successfully."
+                else
+                    echo "Invalid value for column type: $colType"
                 fi
             fi
-        else
-            echo "Table $stbname does not exist."
         fi
     else
-        echo "Please select a database."
+        echo "Table $stbname does not exist."
     fi
-    ;;
+else
+    echo "Please select a database."
+fi
+;;
 
 
             "DropDatabase")

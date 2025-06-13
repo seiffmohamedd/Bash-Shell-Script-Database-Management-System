@@ -1,0 +1,89 @@
+"deletefromtable")
+
+        if [[ $PWD == ~/Database/* ]]; then
+            read -p "enter the table name: " stbname
+            if [[ -f "$PWD/$stbname" ]]; then
+            chmod 777 "$PWD/$stbname"
+            read -p "enter column name you want to delete from (column_name) (if no filter specified the whole table data will be deleted): " column_name
+            
+            if [[ $column_name == "" ]];then
+                touch delfile
+                # echo "$PWD"
+                > "$PWD/$stbname"
+                rm -r delfile
+            else
+
+            getColumnName=($(awk '
+                BEGIN {
+                    FS=":"
+                }{
+                    print $1
+                
+                }' "$PWD/.meta$stbname"))
+
+            columnType=($(awk '
+                BEGIN { 
+
+                FS=":" 
+                
+                }{ 
+                
+                print $2 
+                
+                }' "$PWD/.meta$stbname"))
+
+            flagfound=0
+            colType=""
+            colname=""
+            idxx=0
+            
+            for ((i = 0; i < ${#getColumnName[@]}; i++)); do
+                colname="${getColumnName[$i]}"
+                if [[ $column_name == $colname ]]; then
+                    flagfound=1
+                    colType="${columnType[$i]}"
+                    idxx=$((i + 1))
+                    break  
+                fi
+            done
+
+            if [[ $flagfound == 0 ]]; then
+                echo "column name doesn't exist "
+            else
+
+            flagfound=0
+            echo $colType
+            echo $colname
+            read -p "please enter your delete constraint: " filter
+            deletion=($(awk '
+            BEGIN {
+                FS=":"
+            }{
+                if($idxx == filter)
+                    print $0
+
+            }' idxx="$idxx" filter="$filter" "$PWD/$stbname"))
+
+         for ((i=0; i<${#deletion[@]}; i++)); do
+            del="${deletion[$i]}"
+            # echo "dah el del"
+            # echo $del 
+            delrows=$(grep -x "$del" "$PWD/$stbname")
+            echo "dah el del rows"
+            echo $delrows
+            
+            for row in $delrows; do
+                sed -i "/$row/d" "$PWD/$stbname"
+            done
+        done
+            fi
+            fi
+            else  
+             echo "Table $stbname does not exist."
+            fi
+
+        else
+            echo "please select a database"
+        fi
+
+        ;;
